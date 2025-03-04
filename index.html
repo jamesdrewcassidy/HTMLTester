@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Enhanced HTML Tester (Split View + Modal + Syntax Highlighting)</title>
+  <style>
+    /* RESET & BASE */
+    * {
+      margin: 0; 
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      padding: 1rem;
+      background: #333;
+      color: #fff;
+      text-align: center;
+    }
+
+    /**********************************************
+     * MAIN LAYOUT
+     **********************************************/
+    .container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative; /* so we can overlay text editor & highlight easily */
+    }
+    .editor-area {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .editor-top-bar {
+      padding: 0.5rem;
+      background: #ddd;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .editor-top-bar button {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border: none;
+      background: #333;
+      color: #fff;
+      border-radius: 3px;
+      transition: background 0.3s ease;
+    }
+    .editor-top-bar button:hover {
+      background: #555;
+    }
+
+    /* We handle the code editing with a TEXTAREA on top and a HIGHLIGHT
+       area behind it. We'll stack them using absolute positioning. */
+    .editor-wrapper {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      overflow: hidden;
+    }
+    /* The highlighted code behind */
+    #highlightedCode {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none; /* so clicks go to the textarea */
+      padding: 1rem;
+      font-family: monospace;
+      white-space: pre;
+      overflow-wrap: normal;
+      overflow: auto;
+      background: #fafafa;
+      color: #333;
+    }
+    /* The raw code text area in front */
+    #codeEditor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      resize: none;
+      padding: 1rem;
+      font-family: monospace;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: transparent; /* so we only see the highlight behind it */
+      caret-color: #000;  /* show caret in black */
+      overflow: auto;
+    }
+
+    /* If user toggles "split view", show the preview on the right half */
+    .split-view .preview-area {
+      display: block;
+    }
+    .preview-area {
+      display: none; /* hidden by default; only shown in split view */
+      width: 50%;
+      border-left: 1px solid #ccc;
+      background: #fff;
+    }
+    .preview-area iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    /**********************************************
+     * MODAL OVERLAY PREVIEW
+     **********************************************/
+    .overlay {
+      position: fixed;
+      top: 0; 
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;         /* hidden by default */
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .overlay.show {
+      display: flex;         /* show the overlay */
+      animation: fadeIn 0.3s ease forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .iframe-wrapper {
+      position: relative;
+      width: 90%;
+      height: 90%;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .iframe-wrapper iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+    .close-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: #e74c3c;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s ease;
+    }
+    .close-btn:hover {
+      background: #c0392b;
+    }
+
+    /**********************************************
+     * BASIC SYNTAX HIGHLIGHT STYLES
+     **********************************************/
+    .comment {
+      color: #999;
+      font-style: italic;
+    }
+    .tag {
+      color: #0080ff; /* HTML tags */
+    }
+    .attr {
+      color: #b862ac; /* HTML attributes */
+    }
+    .string {
+      color: #e67e22; /* strings in quotes */
+    }
+    .keyword {
+      color: #d35400; /* for future expansions, like js keywords */
+      font-weight: bold;
+    }
+    .entity {
+      color: #d35400; /* &amp; &lt; &gt; etc. */
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HTML Tester + Syntax Highlight</h1>
+  </header>
+
+  <div class="container" id="mainContainer">
+    <!-- Editor Area -->
+    <div class="editor-area">
+      <div class="editor-top-bar">
+        <button id="toggleViewBtn">Toggle Split View</button>
+        <button id="runBtn">Run Fullscreen</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+
+      <div class="editor-wrapper">
+        <pre id="highlightedCode"></pre>
+        <textarea id="codeEditor" spellcheck="false" 
+          placeholder="Type or paste your HTML/CSS/JS here..."></textarea>
+      </div>
+    </div>
+
+    <!-- Split View Preview (hidden by default) -->
+    <div class="preview-area" id="splitPreview">
+      <iframe id="splitFrame"></iframe>
+    </div>
+  </div>
+
+  <!-- Modal Overlay for Fullscreen Preview -->
+  <div class="overlay" id="overlay">
+    <div class="iframe-wrapper">
+      <button class="close-btn" id="closeBtn">Close</button>
+      <iframe id="previewFrame"></iframe>
+    </div>
+  </div>
+
+  <script>
+    /***********************************************
+     * SELECTORS
+     ***********************************************/
+    const mainContainer = document.getElementById('mainContainer');
+    const toggleViewBtn = document.getElementById('toggleViewBtn');
+    const runBtn        = document.getElementById('runBtn');
+    const clearBtn      = document.getElementById('clearBtn');
+    const codeEditor    = document.getElementById('codeEditor');
+    const highlightedCode = document.getElementById('highlightedCode');
+    const splitPreview  = document.getElementById('splitPreview');
+    const splitFrame    = document.getElementById('splitFrame');
+    const overlay       = document.getElementById('overlay');
+    const previewFrame  = document.getElementById('previewFrame');
+    const closeBtn      = document.getElementById('closeBtn');
+
+    /***********************************************
+     * BASIC SYNTAX HIGHLIGHTING (NAIVE IMPLEMENTATION)
+     *
+     * This function:
+     * 1) Escapes <, >, & for HTML display
+     * 2) Highlights comments
+     * 3) Highlights tags & attributes
+     * 4) Highlights quoted strings
+     ***********************************************/
+    function highlight(code) {
+      // 0) Escape HTML
+      code = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // 1) Comments: <!-- --> 
+      code = code.replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="comment">$1</span>');
+
+      // 2) HTML tags (opening/closing), capture attributes
+      //    Pattern explanation:
+      //    (&lt;[!/]?\w+) => Start of tag, e.g. <html
+      //    ([^&gt;]*?)    => all stuff until the closing ">"
+      //    (&gt;)         => the actual ">"
+      code = code.replace(
+        /(&lt;[!\/]?\w+)([^&gt;]*?)(&gt;)/g,
+        (match, p1, p2, p3) => {
+          // highlight the tag name
+          let result = `<span class="tag">${p1}</span>`;
+
+          // highlight attributes within p2
+          // We'll look for something like attribute="value"
+          // or attribute='value' etc.
+          p2 = p2.replace(
+            /(\w+)(=)(["'])(.*?)\3/g,
+            `<span class="attr">$1</span>$2<span class="string">$3$4$3</span>`
+          );
+
+          // reassemble
+          return result + p2 + `<span class="tag">${p3}</span>`;
+        }
+      );
+
+      // 3) Strings outside of tags (like JS strings in <script>)
+      //    We look for "something" or 'something' not preceded by =
+      //    This is extremely naive, but works for basic cases
+      code = code.replace(
+        /(^|[^\\])(".*?"|'.*?')/g,
+        (m, lead, str) => {
+          return lead + `<span class="string">${str}</span>`;
+        }
+      );
+
+      return code;
+    }
+
+    /***********************************************
+     * UPDATE HIGHLIGHT ON INPUT
+     ***********************************************/
+    codeEditor.addEventListener('input', () => {
+      const code = codeEditor.value;
+      highlightedCode.innerHTML = highlight(code);
+      syncScroll();
+      // If we're in split view, auto-run in the side iframe
+      if (mainContainer.classList.contains('split-view')) {
+        splitFrame.srcdoc = code;
+      }
+    });
+
+    /***********************************************
+     * KEEP SCROLL IN SYNC
+     ***********************************************/
+    codeEditor.addEventListener('scroll', () => {
+      syncScroll();
+    });
+    function syncScroll() {
+      // match scroll top + left of the highlighted area
+      highlightedCode.scrollTop = codeEditor.scrollTop;
+      highlightedCode.scrollLeft = codeEditor.scrollLeft;
+    }
+
+    /***********************************************
+     * SPLIT VIEW TOGGLE
+     ***********************************************/
+    toggleViewBtn.addEventListener('click', () => {
+      mainContainer.classList.toggle('split-view');
+
+      // If we just enabled split view, put the current code in the right iframe
+      if (mainContainer.classList.contains('split-view')) {
+        splitFrame.srcdoc = codeEditor.value;
+      } else {
+        // hide it
+        splitFrame.srcdoc = '';
+      }
+    });
+
+    /***********************************************
+     * RUN FULLSCREEN (MODAL)
+     ***********************************************/
+    runBtn.addEventListener('click', () => {
+      previewFrame.srcdoc = codeEditor.value;
+      overlay.classList.add('show');
+    });
+
+    closeBtn.addEventListener('click', () => {
+      overlay.classList.remove('show');
+    });
+
+    // Close overlay if user clicks the background
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('show');
+      }
+    });
+
+    // ESC key to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && overlay.classList.contains('show')) {
+        overlay.classList.remove('show');
+      }
+    });
+
+    /***********************************************
+     * CLEAR BUTTON
+     ***********************************************/
+    clearBtn.addEventListener('click', () => {
+      codeEditor.value = '';
+      highlightedCode.innerHTML = '';
+      splitFrame.srcdoc = '';
+      previewFrame.srcdoc = '';
+    });
+  </script>
+</body>
+</html>
