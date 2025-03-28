@@ -1,28 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Enhanced HTML Tester (Split View + Modal + Syntax Highlighting)</title>
+  <meta charset="UTF-8" />
+  <title>Smooth & Polished HTML Tester (Copy Code)</title>
   <style>
     /* RESET & BASE */
     * {
-      margin: 0; 
+      margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
     body {
-      font-family: sans-serif;
+      font-family: "Helvetica Neue", Arial, sans-serif;
       background: #f4f4f4;
-      height: 100vh;
+      color: #333;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: background 0.3s ease, color 0.3s ease;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-size: 16px; /* Bump up base font size for better readability */
     }
     header {
       padding: 1rem;
       background: #333;
       color: #fff;
       text-align: center;
+      font-size: 1.1rem;
+    }
+
+    /**********************************************
+     * DARK MODE
+     **********************************************/
+    body.dark {
+      background: #121212;
+      color: #fafafa;
+    }
+    body.dark header {
+      background: #1e1e1e;
+    }
+    body.dark .editor-top-bar {
+      background: #1e1e1e;
+    }
+    body.dark .editor-top-bar button {
+      background: #333;
+      color: #fff;
+    }
+    body.dark .editor-top-bar button:hover {
+      background: #444;
+    }
+    body.dark #highlightedCode {
+      background: #222;
+      color: #ddd;
+    }
+    body.dark .iframe-wrapper {
+      background: #333;
+    }
+    body.dark .close-btn,
+    body.dark .mobile-btn,
+    body.dark .dark-mode-btn {
+      background: #333;
+      color: #fff;
     }
 
     /**********************************************
@@ -32,10 +75,11 @@
       display: flex;
       flex: 1;
       overflow: hidden;
-      position: relative; /* so we can overlay text editor & highlight easily */
+      position: relative;
+      transition: all 0.3s ease;
     }
     .editor-area {
-      width: 100%;
+      flex: 1;
       display: flex;
       flex-direction: column;
       position: relative;
@@ -45,45 +89,51 @@
       background: #ddd;
       display: flex;
       gap: 0.5rem;
+      align-items: center;
+      transition: background 0.3s ease;
     }
     .editor-top-bar button {
-      padding: 0.5rem 1rem;
+      padding: 0.6rem 1rem;
       cursor: pointer;
       border: none;
       background: #333;
       color: #fff;
-      border-radius: 3px;
-      transition: background 0.3s ease;
+      border-radius: 4px;
+      transition: background 0.3s ease, transform 0.2s ease;
+      font-size: 0.95rem;
     }
     .editor-top-bar button:hover {
       background: #555;
+      transform: translateY(-1px);
     }
 
-    /* We handle the code editing with a TEXTAREA on top and a HIGHLIGHT
-       area behind it. We'll stack them using absolute positioning. */
     .editor-wrapper {
       position: relative;
       flex: 1;
       width: 100%;
       overflow: hidden;
+      /* Subtle border + shadow for the editor */
+      border-top: 1px solid #ccc;
+      box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.06);
     }
-    /* The highlighted code behind */
     #highlightedCode {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none; /* so clicks go to the textarea */
+      pointer-events: none; /* Let clicks pass to textarea */
       padding: 1rem;
-      font-family: monospace;
+      font-family: Consolas, Menlo, "Courier New", monospace;
+      line-height: 1.4;
+      font-size: 15px;
       white-space: pre;
       overflow-wrap: normal;
       overflow: auto;
       background: #fafafa;
       color: #333;
+      transition: background 0.3s ease, color 0.3s ease;
     }
-    /* The raw code text area in front */
     #codeEditor {
       position: absolute;
       top: 0;
@@ -92,34 +142,37 @@
       height: 100%;
       resize: none;
       padding: 1rem;
-      font-family: monospace;
+      font-family: Consolas, Menlo, "Courier New", monospace;
+      line-height: 1.4;
+      font-size: 15px;
       border: none;
       outline: none;
       background: transparent;
-      color: transparent; /* so we only see the highlight behind it */
-      caret-color: #000;  /* show caret in black */
+      color: transparent; /* So only highlight is visible */
+      caret-color: #000;
       overflow: auto;
     }
 
-    /* If user toggles "split view", show the preview on the right half */
+    /* Split View Preview */
     .split-view .preview-area {
       display: block;
     }
     .preview-area {
-      display: none; /* hidden by default; only shown in split view */
+      display: none;
       width: 50%;
       border-left: 1px solid #ccc;
       background: #fff;
+      transition: width 0.3s ease;
+      box-shadow: -2px 0 4px rgba(0, 0, 0, 0.06);
     }
     .preview-area iframe {
       width: 100%;
       height: 100%;
       border: none;
-      display: block;
     }
 
     /**********************************************
-     * MODAL OVERLAY PREVIEW
+     * MODAL PREVIEW
      **********************************************/
     .overlay {
       position: fixed;
@@ -128,13 +181,13 @@
       width: 100vw;
       height: 100vh;
       background: rgba(0, 0, 0, 0.8);
-      display: none;         /* hidden by default */
+      display: none; /* hidden by default */
       justify-content: center;
       align-items: center;
       z-index: 9999;
     }
     .overlay.show {
-      display: flex;         /* show the overlay */
+      display: flex;
       animation: fadeIn 0.3s ease forwards;
     }
     @keyframes fadeIn {
@@ -148,12 +201,16 @@
       background: #fff;
       border-radius: 8px;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      transition: width 0.3s ease, height 0.3s ease;
     }
     .iframe-wrapper iframe {
+      flex: 1;
       width: 100%;
       height: 100%;
       border: none;
-      display: block;
     }
     .close-btn {
       position: absolute;
@@ -166,10 +223,39 @@
       padding: 0.5rem 1rem;
       cursor: pointer;
       font-weight: bold;
-      transition: background 0.3s ease;
+      transition: background 0.3s ease, transform 0.2s ease;
     }
     .close-btn:hover {
       background: #c0392b;
+      transform: translateY(-1px);
+    }
+
+    /* Single Universal Mobile View Button */
+    .mobile-btn {
+      position: absolute;
+      top: 0.5rem;
+      left: 0.5rem;
+      background: #2ecc71;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s ease, transform 0.2s ease;
+    }
+    .mobile-btn:hover {
+      background: #27ae60;
+      transform: translateY(-1px);
+    }
+
+    /* Dark Mode Toggle Button */
+    .dark-mode-btn {
+      background: #444;
+      color: #fff;
+    }
+    .dark-mode-btn:hover {
+      background: #555;
     }
 
     /**********************************************
@@ -189,7 +275,7 @@
       color: #e67e22; /* strings in quotes */
     }
     .keyword {
-      color: #d35400; /* for future expansions, like js keywords */
+      color: #d35400; /* for future expansions */
       font-weight: bold;
     }
     .entity {
@@ -199,7 +285,7 @@
 </head>
 <body>
   <header>
-    <h1>HTML Tester + Syntax Highlight</h1>
+    <h1>Smooth & Polished HTML Tester (Copy Code)</h1>
   </header>
 
   <div class="container" id="mainContainer">
@@ -209,12 +295,16 @@
         <button id="toggleViewBtn">Toggle Split View</button>
         <button id="runBtn">Run Fullscreen</button>
         <button id="clearBtn">Clear</button>
+        <button id="copyBtn">Copy Code</button>
+        <button class="dark-mode-btn" id="darkModeBtn">Dark Mode: Off</button>
       </div>
 
       <div class="editor-wrapper">
+        <!-- Highlighted code behind -->
         <pre id="highlightedCode"></pre>
-        <textarea id="codeEditor" spellcheck="false" 
-          placeholder="Type or paste your HTML/CSS/JS here..."></textarea>
+        <!-- Actual text area for user input -->
+        <textarea id="codeEditor" spellcheck="false"
+                  placeholder="Type or paste your HTML/CSS/JS here..."></textarea>
       </div>
     </div>
 
@@ -224,10 +314,11 @@
     </div>
   </div>
 
-  <!-- Modal Overlay for Fullscreen Preview -->
+  <!-- Fullscreen Preview Modal -->
   <div class="overlay" id="overlay">
-    <div class="iframe-wrapper">
+    <div class="iframe-wrapper" id="iframeWrapper">
       <button class="close-btn" id="closeBtn">Close</button>
+      <button class="mobile-btn" id="mobileBtn">Mobile View</button>
       <iframe id="previewFrame"></iframe>
     </div>
   </div>
@@ -236,116 +327,95 @@
     /***********************************************
      * SELECTORS
      ***********************************************/
-    const mainContainer = document.getElementById('mainContainer');
-    const toggleViewBtn = document.getElementById('toggleViewBtn');
-    const runBtn        = document.getElementById('runBtn');
-    const clearBtn      = document.getElementById('clearBtn');
-    const codeEditor    = document.getElementById('codeEditor');
+    const mainContainer   = document.getElementById('mainContainer');
+    const toggleViewBtn   = document.getElementById('toggleViewBtn');
+    const runBtn          = document.getElementById('runBtn');
+    const clearBtn        = document.getElementById('clearBtn');
+    const copyBtn         = document.getElementById('copyBtn');
+    const codeEditor      = document.getElementById('codeEditor');
     const highlightedCode = document.getElementById('highlightedCode');
-    const splitPreview  = document.getElementById('splitPreview');
-    const splitFrame    = document.getElementById('splitFrame');
-    const overlay       = document.getElementById('overlay');
-    const previewFrame  = document.getElementById('previewFrame');
-    const closeBtn      = document.getElementById('closeBtn');
+    const splitPreview    = document.getElementById('splitPreview');
+    const splitFrame      = document.getElementById('splitFrame');
+    const overlay         = document.getElementById('overlay');
+    const previewFrame    = document.getElementById('previewFrame');
+    const closeBtn        = document.getElementById('closeBtn');
+    const iframeWrapper   = document.getElementById('iframeWrapper');
+    const mobileBtn       = document.getElementById('mobileBtn');
+    const darkModeBtn     = document.getElementById('darkModeBtn');
+
+    let isDarkMode = false;
+    let isMobile   = false;
 
     /***********************************************
-     * BASIC SYNTAX HIGHLIGHTING (NAIVE IMPLEMENTATION)
-     *
-     * This function:
-     * 1) Escapes <, >, & for HTML display
-     * 2) Highlights comments
-     * 3) Highlights tags & attributes
-     * 4) Highlights quoted strings
+     * BASIC SYNTAX HIGHLIGHTING
      ***********************************************/
     function highlight(code) {
-      // 0) Escape HTML
+      // 1) Escape <, >, & for HTML display
       code = code
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-      // 1) Comments: <!-- --> 
+      // 2) Comments: <!-- --> 
       code = code.replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="comment">$1</span>');
 
-      // 2) HTML tags (opening/closing), capture attributes
-      //    Pattern explanation:
-      //    (&lt;[!/]?\w+) => Start of tag, e.g. <html
-      //    ([^&gt;]*?)    => all stuff until the closing ">"
-      //    (&gt;)         => the actual ">"
+      // 3) HTML tags (opening/closing) + attributes
       code = code.replace(
         /(&lt;[!\/]?\w+)([^&gt;]*?)(&gt;)/g,
         (match, p1, p2, p3) => {
-          // highlight the tag name
           let result = `<span class="tag">${p1}</span>`;
-
-          // highlight attributes within p2
-          // We'll look for something like attribute="value"
-          // or attribute='value' etc.
+          // highlight attributes
           p2 = p2.replace(
             /(\w+)(=)(["'])(.*?)\3/g,
             `<span class="attr">$1</span>$2<span class="string">$3$4$3</span>`
           );
-
-          // reassemble
           return result + p2 + `<span class="tag">${p3}</span>`;
         }
       );
 
-      // 3) Strings outside of tags (like JS strings in <script>)
-      //    We look for "something" or 'something' not preceded by =
-      //    This is extremely naive, but works for basic cases
+      // 4) Strings outside tags
       code = code.replace(
         /(^|[^\\])(".*?"|'.*?')/g,
-        (m, lead, str) => {
-          return lead + `<span class="string">${str}</span>`;
-        }
+        (m, lead, str) => lead + `<span class="string">${str}</span>`
       );
 
       return code;
     }
 
     /***********************************************
-     * UPDATE HIGHLIGHT ON INPUT
+     * HANDLE EDITOR INPUT
      ***********************************************/
     codeEditor.addEventListener('input', () => {
       const code = codeEditor.value;
       highlightedCode.innerHTML = highlight(code);
       syncScroll();
-      // If we're in split view, auto-run in the side iframe
+
+      // If split view is on, auto-update the side preview
       if (mainContainer.classList.contains('split-view')) {
         splitFrame.srcdoc = code;
       }
     });
 
-    /***********************************************
-     * KEEP SCROLL IN SYNC
-     ***********************************************/
-    codeEditor.addEventListener('scroll', () => {
-      syncScroll();
-    });
+    codeEditor.addEventListener('scroll', syncScroll);
     function syncScroll() {
-      // match scroll top + left of the highlighted area
-      highlightedCode.scrollTop = codeEditor.scrollTop;
+      highlightedCode.scrollTop  = codeEditor.scrollTop;
       highlightedCode.scrollLeft = codeEditor.scrollLeft;
     }
 
     /***********************************************
-     * SPLIT VIEW TOGGLE
+     * SPLIT VIEW
      ***********************************************/
     toggleViewBtn.addEventListener('click', () => {
       mainContainer.classList.toggle('split-view');
-
-      // If we just enabled split view, put the current code in the right iframe
       if (mainContainer.classList.contains('split-view')) {
         splitFrame.srcdoc = codeEditor.value;
       } else {
-        // hide it
         splitFrame.srcdoc = '';
       }
     });
 
     /***********************************************
-     * RUN FULLSCREEN (MODAL)
+     * FULLSCREEN PREVIEW
      ***********************************************/
     runBtn.addEventListener('click', () => {
       previewFrame.srcdoc = codeEditor.value;
@@ -354,30 +424,77 @@
 
     closeBtn.addEventListener('click', () => {
       overlay.classList.remove('show');
+      resetMobile();
     });
 
-    // Close overlay if user clicks the background
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
         overlay.classList.remove('show');
+        resetMobile();
       }
     });
 
-    // ESC key to close
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && overlay.classList.contains('show')) {
         overlay.classList.remove('show');
+        resetMobile();
       }
     });
 
     /***********************************************
-     * CLEAR BUTTON
+     * SINGLE UNIVERSAL MOBILE VIEW
+     ***********************************************/
+    mobileBtn.addEventListener('click', toggleMobile);
+    function toggleMobile() {
+      isMobile = !isMobile;
+      if (isMobile) {
+        iframeWrapper.style.width  = '375px';
+        iframeWrapper.style.height = '667px';
+        mobileBtn.textContent      = 'Desktop View';
+      } else {
+        resetMobile();
+      }
+    }
+    function resetMobile() {
+      isMobile = false;
+      iframeWrapper.style.width  = '90%';
+      iframeWrapper.style.height = '90%';
+      mobileBtn.textContent      = 'Mobile View';
+    }
+
+    /***********************************************
+     * DARK MODE TOGGLE
+     ***********************************************/
+    darkModeBtn.addEventListener('click', () => {
+      isDarkMode = !isDarkMode;
+      document.body.classList.toggle('dark', isDarkMode);
+      darkModeBtn.textContent = isDarkMode ? 'Dark Mode: On' : 'Dark Mode: Off';
+    });
+
+    /***********************************************
+     * CLEAR
      ***********************************************/
     clearBtn.addEventListener('click', () => {
       codeEditor.value = '';
       highlightedCode.innerHTML = '';
       splitFrame.srcdoc = '';
       previewFrame.srcdoc = '';
+    });
+
+    /***********************************************
+     * COPY CODE (NEW)
+     ***********************************************/
+    copyBtn.addEventListener('click', () => {
+      const code = codeEditor.value; // raw text from the editor
+      if (!code) return;
+
+      navigator.clipboard.writeText(code)
+        .then(() => {
+          alert('Code copied to clipboard!');
+        })
+        .catch(err => {
+          console.error('Failed to copy: ', err);
+        });
     });
   </script>
 </body>
